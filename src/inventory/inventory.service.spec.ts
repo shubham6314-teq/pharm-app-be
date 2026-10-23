@@ -4,12 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  ContentUnit,
-  PackUnit,
-  Prisma,
-  StockMovementType,
-} from '../generated/prisma/client.js';
+import { Prisma, StockMovementType } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateStockMovementDto } from './dto/create-stock-movement.dto.js';
 import { addUtcDays, startOfInventoryDay } from './inventory-dates.js';
@@ -57,9 +52,21 @@ describe('InventoryService', () => {
     name: 'Crocin',
     code: 'CRO100ML',
     packSize: '100 ML',
-    packUnit: PackUnit.BOTTLE,
+    packType: {
+      id: 'aaaaaaaa-0001-4000-8000-000000000002',
+      name: 'Bottle',
+      code: 'BOTTLE',
+      singularLabel: 'bottle',
+      pluralLabel: 'bottles',
+    },
     contentQuantity: 100,
-    contentUnit: ContentUnit.ML,
+    contentUnit: {
+      id: 'bbbbbbbb-0001-4000-8000-000000000003',
+      name: 'Millilitre',
+      code: 'ML',
+      singularLabel: 'ml',
+      pluralLabel: 'ml',
+    },
     reorderLevel: 5,
     mrp: 80,
     category: {

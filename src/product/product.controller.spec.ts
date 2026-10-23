@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { PackUnit, ProductStatus, ContentUnit } from '../generated/prisma/client.js';
+import { ProductStatus } from '../generated/prisma/client.js';
 import { ProductController } from './product.controller.js';
 import { ProductService } from './product.service.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
@@ -66,9 +66,9 @@ describe('ProductController', () => {
       brandName: 'GSK',
       composition: 'Paracetamol 125 mg/5 ml',
       packSize: '100 ML',
-      packUnit: PackUnit.BOTTLE,
+      packTypeId: 'aaaaaaaa-0001-4000-8000-000000000002',
       contentQuantity: 100,
-      contentUnit: ContentUnit.ML,
+      contentUnitId: 'bbbbbbbb-0001-4000-8000-000000000003',
       mrp: 80,
       categoryId: product.categoryId,
     };
@@ -86,9 +86,9 @@ describe('ProductController', () => {
       brandName: 'GSK',
       composition: 'Paracetamol 125 mg/5 ml',
       packSize: '100 ML',
-      packUnit: PackUnit.BOTTLE,
+      packTypeId: 'aaaaaaaa-0001-4000-8000-000000000002',
       contentQuantity: 100,
-      contentUnit: ContentUnit.ML,
+      contentUnitId: 'bbbbbbbb-0001-4000-8000-000000000003',
       mrp: 80,
       categoryId: product.categoryId,
     };

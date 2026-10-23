@@ -11,5 +11,9 @@ export const PRODUCT_DETAILS_EXIST_MESSAGE =
 export const PRODUCT_NOT_FOUND_MESSAGE = 'Product not found';
 export const PRODUCT_CATEGORY_NOT_FOUND_MESSAGE =
   'Selected category was not found';
+export const PRODUCT_PACK_TYPE_NOT_FOUND_MESSAGE =
+  'Selected pack type was not found';
+export const PRODUCT_CONTENT_UNIT_NOT_FOUND_MESSAGE =
+  'Selected content unit was not found';
 export const PRODUCT_UPDATE_EMPTY_MESSAGE =
   'At least one field must be provided';

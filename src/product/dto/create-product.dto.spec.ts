@@ -3,6 +3,8 @@ import { validate } from 'class-validator';
 import { CreateProductDto } from './create-product.dto.js';
 
 const categoryId = '22222222-2222-4222-8222-222222222222';
+const packTypeId = 'aaaaaaaa-0001-4000-8000-000000000002';
+const contentUnitId = 'bbbbbbbb-0001-4000-8000-000000000003';
 
 async function validateDto(plain: Record<string, unknown>) {
   const dto = plainToInstance(CreateProductDto, plain);
@@ -18,9 +20,9 @@ describe('CreateProductDto', () => {
       brandName: 'GSK',
       composition: 'Paracetamol 125 mg/5 ml',
       packSize: '4*5*2 ml Respules',
-      packUnit: 'BOTTLE',
+      packTypeId,
       contentQuantity: 100,
-      contentUnit: 'ML',
+      contentUnitId,
       reorderLevel: 10,
       mrp: 80.5,
       discountPercent: 10,
@@ -37,9 +39,9 @@ describe('CreateProductDto', () => {
       brandName: 'GSK',
       composition: 'Paracetamol 125 mg/5 ml',
       packSize: '10*10 Blister',
-      packUnit: 'STRIP',
+      packTypeId: 'aaaaaaaa-0001-4000-8000-000000000001',
       contentQuantity: '10',
-      contentUnit: 'TABLET',
+      contentUnitId: 'bbbbbbbb-0001-4000-8000-000000000001',
       mrp: '120.00',
       categoryId,
     });
@@ -61,9 +63,9 @@ describe('CreateProductDto', () => {
         'brandName',
         'composition',
         'packSize',
-        'packUnit',
+        'packTypeId',
         'contentQuantity',
-        'contentUnit',
+        'contentUnitId',
         'mrp',
         'categoryId',
       ]),
@@ -125,9 +127,9 @@ describe('CreateProductDto', () => {
       brandName: '  GSK  ',
       composition: '  Paracetamol 125 mg/5 ml  ',
       packSize: '  200 ML  ',
-      packUnit: 'BOTTLE',
+      packTypeId: `  ${packTypeId}  `,
       contentQuantity: 100,
-      contentUnit: 'ML',
+      contentUnitId: `  ${contentUnitId}  `,
       mrp: 80,
       categoryId: `  ${categoryId}  `,
     });
@@ -141,6 +143,8 @@ describe('CreateProductDto', () => {
     expect(dto.brandName).toBe('GSK');
     expect(dto.composition).toBe('Paracetamol 125 mg/5 ml');
     expect(dto.packSize).toBe('200 ML');
+    expect(dto.packTypeId).toBe(packTypeId);
+    expect(dto.contentUnitId).toBe(contentUnitId);
     expect(dto.categoryId).toBe(categoryId);
   });
 });

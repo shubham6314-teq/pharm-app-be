@@ -37,9 +37,25 @@ const batchInclude = {
       name: true,
       code: true,
       packSize: true,
-      packUnit: true,
+      packType: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          singularLabel: true,
+          pluralLabel: true,
+        },
+      },
       contentQuantity: true,
-      contentUnit: true,
+      contentUnit: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          singularLabel: true,
+          pluralLabel: true,
+        },
+      },
       reorderLevel: true,
       mrp: true,
       category: {

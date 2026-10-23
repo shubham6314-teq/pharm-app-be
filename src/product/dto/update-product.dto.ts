@@ -12,11 +12,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import {
-  ContentUnit,
-  PackUnit,
-  ProductStatus,
-} from '../../generated/prisma/client.js';
+import { ProductStatus } from '../../generated/prisma/client.js';
 import { toNumber, trimNullableString, trimString } from './transform-strings.js';
 
 export class UpdateProductDto {
@@ -60,9 +56,10 @@ export class UpdateProductDto {
   @MaxLength(100)
   packSize?: string;
 
-  @IsOptional()
-  @IsEnum(PackUnit)
-  packUnit?: PackUnit;
+  @ValidateIf((_, value) => value !== undefined)
+  @Transform(trimString)
+  @IsUUID('4')
+  packTypeId?: string;
 
   @ValidateIf((_, value) => value !== undefined)
   @Transform(toNumber)
@@ -71,9 +68,10 @@ export class UpdateProductDto {
   @Max(99999999.99)
   contentQuantity?: number;
 
-  @IsOptional()
-  @IsEnum(ContentUnit)
-  contentUnit?: ContentUnit;
+  @ValidateIf((_, value) => value !== undefined)
+  @Transform(trimString)
+  @IsUUID('4')
+  contentUnitId?: string;
 
   @ValidateIf((_, value) => value !== undefined)
   @Transform(toNumber)

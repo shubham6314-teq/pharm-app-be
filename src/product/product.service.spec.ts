@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Prisma, ContentUnit, PackUnit, ProductStatus } from '../generated/prisma/client.js';
+import { Prisma, ProductStatus } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LocalFileStorageService } from '../storage/local-file-storage.service.js';
 import {
@@ -31,6 +31,12 @@ describe('ProductService', () => {
     category: {
       findFirst: ReturnType<typeof vi.fn>;
     };
+    packType: {
+      findFirst: ReturnType<typeof vi.fn>;
+    };
+    contentUnit: {
+      findFirst: ReturnType<typeof vi.fn>;
+    };
   };
   let files: {
     saveProductImage: ReturnType<typeof vi.fn>;
@@ -44,9 +50,9 @@ describe('ProductService', () => {
     brandName: 'GSK',
     composition: 'Paracetamol 125 mg/5 ml',
     packSize: '100 ML',
-    packUnit: PackUnit.BOTTLE,
+    packTypeId: 'aaaaaaaa-0001-4000-8000-000000000002',
     contentQuantity: 100,
-    contentUnit: ContentUnit.ML,
+    contentUnitId: 'bbbbbbbb-0001-4000-8000-000000000003',
     reorderLevel: 20,
     mrp: 80,
     discountPercent: 10,
@@ -65,6 +71,22 @@ describe('ProductService', () => {
     },
   };
 
+  const packType = {
+    id: createDto.packTypeId,
+    name: 'Bottle',
+    code: 'BOTTLE',
+    singularLabel: 'bottle',
+    pluralLabel: 'bottles',
+  };
+
+  const contentUnit = {
+    id: createDto.contentUnitId,
+    name: 'Millilitre',
+    code: 'ML',
+    singularLabel: 'ml',
+    pluralLabel: 'ml',
+  };
+
   const createdProduct = {
     id: '33333333-3333-4333-8333-333333333333',
     name: createDto.name,
@@ -74,9 +96,11 @@ describe('ProductService', () => {
     brandName: createDto.brandName,
     composition: createDto.composition,
     packSize: createDto.packSize,
-    packUnit: createDto.packUnit,
+    packTypeId: createDto.packTypeId,
+    packType,
     contentQuantity: createDto.contentQuantity,
-    contentUnit: createDto.contentUnit,
+    contentUnitId: createDto.contentUnitId,
+    contentUnit,
     reorderLevel: createDto.reorderLevel,
     mrp: createDto.mrp,
     discountPercent: createDto.discountPercent,
@@ -116,6 +140,24 @@ describe('ProductService', () => {
         },
       },
     },
+    packType: {
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        singularLabel: true,
+        pluralLabel: true,
+      },
+    },
+    contentUnit: {
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        singularLabel: true,
+        pluralLabel: true,
+      },
+    },
   };
 
   beforeEach(async () => {
@@ -129,6 +171,12 @@ describe('ProductService', () => {
         updateMany: vi.fn(),
       },
       category: {
+        findFirst: vi.fn(),
+      },
+      packType: {
+        findFirst: vi.fn(),
+      },
+      contentUnit: {
         findFirst: vi.fn(),
       },
     };
@@ -146,10 +194,14 @@ describe('ProductService', () => {
     }).compile();
 
     service = module.get(ProductService);
+    prisma.packType.findFirst.mockResolvedValue(packType);
+    prisma.contentUnit.findFirst.mockResolvedValue(contentUnit);
   });
 
   it('creates a product successfully', async () => {
     prisma.category.findFirst.mockResolvedValue(category);
+    prisma.packType.findFirst.mockResolvedValue(packType);
+    prisma.contentUnit.findFirst.mockResolvedValue(contentUnit);
     prisma.product.findFirst.mockResolvedValue(null);
     prisma.product.create.mockResolvedValue(createdProduct);
 
@@ -163,9 +215,9 @@ describe('ProductService', () => {
         brandName: createDto.brandName,
         composition: createDto.composition,
         packSize: createDto.packSize,
-        packUnit: createDto.packUnit,
+        packTypeId: createDto.packTypeId,
         contentQuantity: createDto.contentQuantity,
-        contentUnit: createDto.contentUnit,
+        contentUnitId: createDto.contentUnitId,
         reorderLevel: createDto.reorderLevel,
         mrp: createDto.mrp,
         discountPercent: createDto.discountPercent,

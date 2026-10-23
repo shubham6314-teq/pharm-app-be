@@ -7,9 +7,11 @@ import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard.js';
 import { CategoryModule } from './category/category.module.js';
+import { ContentUnitModule } from './content-unit/content-unit.module.js';
 import { DivisionModule } from './division/division.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
+import { PackTypeModule } from './pack-type/pack-type.module.js';
 import { ProductModule } from './product/product.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
@@ -28,6 +30,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     AuthModule,
     DivisionModule,
     CategoryModule,
+    PackTypeModule,
+    ContentUnitModule,
     ProductModule,
     InventoryModule,
   ],

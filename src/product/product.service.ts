@@ -12,9 +12,11 @@ import {
   DEFAULT_PRODUCT_PAGE_SIZE,
   PRODUCT_CATEGORY_NOT_FOUND_MESSAGE,
   PRODUCT_CODE_EXISTS_MESSAGE,
+  PRODUCT_CONTENT_UNIT_NOT_FOUND_MESSAGE,
   PRODUCT_DETAILS_EXIST_MESSAGE,
   PRODUCT_NAME_PACK_EXISTS_MESSAGE,
   PRODUCT_NOT_FOUND_MESSAGE,
+  PRODUCT_PACK_TYPE_NOT_FOUND_MESSAGE,
   PRODUCT_UPDATE_EMPTY_MESSAGE,
 } from './product.constants.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
@@ -23,6 +25,14 @@ import { UpdateProductDto } from './dto/update-product.dto.js';
 
 const activeProductWhere = {
   isDeleted: false,
+} as const;
+
+const catalogUnitSelect = {
+  id: true,
+  name: true,
+  code: true,
+  singularLabel: true,
+  pluralLabel: true,
 } as const;
 
 const productInclude = {
@@ -40,6 +50,12 @@ const productInclude = {
         },
       },
     },
+  },
+  packType: {
+    select: catalogUnitSelect,
+  },
+  contentUnit: {
+    select: catalogUnitSelect,
   },
 } as const;
 
@@ -60,9 +76,9 @@ export class ProductService {
       brandName,
       composition,
       packSize,
-      packUnit,
+      packTypeId,
       contentQuantity,
-      contentUnit,
+      contentUnitId,
       reorderLevel,
       mrp,
       discountPercent,
@@ -70,6 +86,8 @@ export class ProductService {
     } = createProductDto;
 
     await this.ensureActiveCategory(categoryId);
+    await this.ensureActivePackType(packTypeId);
+    await this.ensureActiveContentUnit(contentUnitId);
     await this.assertUniqueCode(code);
     await this.assertUniqueNameAndPack(categoryId, name, packSize);
 
@@ -86,9 +104,9 @@ export class ProductService {
           brandName,
           composition,
           packSize,
-          packUnit,
+          packTypeId,
           contentQuantity,
-          contentUnit,
+          contentUnitId,
           ...(reorderLevel !== undefined ? { reorderLevel } : {}),
           mrp,
           ...(discountPercent !== undefined ? { discountPercent } : {}),
@@ -154,9 +172,9 @@ export class ProductService {
       brandName,
       composition,
       packSize,
-      packUnit,
+      packTypeId,
       contentQuantity,
-      contentUnit,
+      contentUnitId,
       reorderLevel,
       mrp,
       discountPercent,
@@ -171,9 +189,9 @@ export class ProductService {
       brandName === undefined &&
       composition === undefined &&
       packSize === undefined &&
-      packUnit === undefined &&
+      packTypeId === undefined &&
       contentQuantity === undefined &&
-      contentUnit === undefined &&
+      contentUnitId === undefined &&
       reorderLevel === undefined &&
       mrp === undefined &&
       discountPercent === undefined &&
@@ -189,6 +207,14 @@ export class ProductService {
 
     if (categoryId !== undefined) {
       await this.ensureActiveCategory(categoryId);
+    }
+
+    if (packTypeId !== undefined) {
+      await this.ensureActivePackType(packTypeId);
+    }
+
+    if (contentUnitId !== undefined) {
+      await this.ensureActiveContentUnit(contentUnitId);
     }
 
     if (code !== undefined) {
@@ -218,9 +244,9 @@ export class ProductService {
           ...(brandName !== undefined ? { brandName } : {}),
           ...(composition !== undefined ? { composition } : {}),
           ...(packSize !== undefined ? { packSize } : {}),
-          ...(packUnit !== undefined ? { packUnit } : {}),
+          ...(packTypeId !== undefined ? { packTypeId } : {}),
           ...(contentQuantity !== undefined ? { contentQuantity } : {}),
-          ...(contentUnit !== undefined ? { contentUnit } : {}),
+          ...(contentUnitId !== undefined ? { contentUnitId } : {}),
           ...(reorderLevel !== undefined ? { reorderLevel } : {}),
           ...(mrp !== undefined ? { mrp } : {}),
           ...(discountPercent !== undefined ? { discountPercent } : {}),
@@ -312,6 +338,36 @@ export class ProductService {
     return category;
   }
 
+  private async ensureActivePackType(id: string) {
+    const packType = await this.prisma.packType.findFirst({
+      where: {
+        id,
+        isDeleted: false,
+      },
+    });
+
+    if (!packType) {
+      throw new BadRequestException(PRODUCT_PACK_TYPE_NOT_FOUND_MESSAGE);
+    }
+
+    return packType;
+  }
+
+  private async ensureActiveContentUnit(id: string) {
+    const contentUnit = await this.prisma.contentUnit.findFirst({
+      where: {
+        id,
+        isDeleted: false,
+      },
+    });
+
+    if (!contentUnit) {
+      throw new BadRequestException(PRODUCT_CONTENT_UNIT_NOT_FOUND_MESSAGE);
+    }
+
+    return contentUnit;
+  }
+
   private async assertUniqueCode(code: string, excludeId?: string) {
     const existing = await this.prisma.product.findFirst({
       where: {
@@ -356,11 +412,23 @@ export class ProductService {
 
   private handleForeignKeyError(error: unknown): void {
     if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2003'
+      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      error.code !== 'P2003'
     ) {
-      throw new BadRequestException(PRODUCT_CATEGORY_NOT_FOUND_MESSAGE);
+      return;
     }
+
+    const field = String(error.meta?.field_name ?? '');
+
+    if (field.includes('packTypeId')) {
+      throw new BadRequestException(PRODUCT_PACK_TYPE_NOT_FOUND_MESSAGE);
+    }
+
+    if (field.includes('contentUnitId')) {
+      throw new BadRequestException(PRODUCT_CONTENT_UNIT_NOT_FOUND_MESSAGE);
+    }
+
+    throw new BadRequestException(PRODUCT_CATEGORY_NOT_FOUND_MESSAGE);
   }
 
   private handleUniqueConstraintError(error: unknown): void {

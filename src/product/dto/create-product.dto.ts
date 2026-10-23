@@ -1,6 +1,5 @@
 import { Transform } from 'class-transformer';
 import {
-  IsEnum,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -11,7 +10,6 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { ContentUnit, PackUnit } from '../../generated/prisma/client.js';
 import { toNumber, trimOptionalString, trimString } from './transform-strings.js';
 
 export class CreateProductDto {
@@ -49,8 +47,9 @@ export class CreateProductDto {
   @MaxLength(100)
   packSize: string;
 
-  @IsEnum(PackUnit)
-  packUnit: PackUnit;
+  @Transform(trimString)
+  @IsUUID('4')
+  packTypeId: string;
 
   @Transform(toNumber)
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -58,8 +57,9 @@ export class CreateProductDto {
   @Max(99999999.99)
   contentQuantity: number;
 
-  @IsEnum(ContentUnit)
-  contentUnit: ContentUnit;
+  @Transform(trimString)
+  @IsUUID('4')
+  contentUnitId: string;
 
   @IsOptional()
   @Transform(toNumber)
