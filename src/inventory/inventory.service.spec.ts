@@ -14,8 +14,10 @@ import {
   DEFAULT_INVENTORY_PAGE_SIZE,
   INVENTORY_BATCH_EXISTS_MESSAGE,
   INVENTORY_BATCH_NOT_FOUND_MESSAGE,
+  INVENTORY_EXPIRY_BEFORE_MANUFACTURING_MESSAGE,
   INVENTORY_INSUFFICIENT_QUANTITY_MESSAGE,
   INVENTORY_PRODUCT_NOT_FOUND_MESSAGE,
+  INVENTORY_UPDATE_EMPTY_MESSAGE,
   StockStatus,
 } from './inventory.constants.js';
 import { InventoryService } from './inventory.service.js';
@@ -35,6 +37,7 @@ describe('InventoryService', () => {
       findMany: ReturnType<typeof vi.fn>;
       count: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
       updateMany: ReturnType<typeof vi.fn>;
       groupBy: ReturnType<typeof vi.fn>;
     };
@@ -120,6 +123,7 @@ describe('InventoryService', () => {
         findMany: vi.fn(),
         count: vi.fn(),
         create: vi.fn(),
+        update: vi.fn(),
         updateMany: vi.fn(),
         groupBy: vi.fn().mockResolvedValue([]),
       },
@@ -307,6 +311,127 @@ describe('InventoryService', () => {
     await expect(service.findOne(batchId)).rejects.toThrow(
       new NotFoundException(INVENTORY_BATCH_NOT_FOUND_MESSAGE),
     );
+  });
+
+  it('updates batch details without changing quantity', async () => {
+    const updatedBatch = {
+      ...batch,
+      batchNumber: 'B-2',
+      expiryDate: new Date('2027-06-01T00:00:00.000Z'),
+      purchaseRate: 45.5,
+      movements: [],
+    };
+    prisma.inventoryBatch.findFirst
+      .mockResolvedValueOnce(batch)
+      .mockResolvedValueOnce(updatedBatch);
+    prisma.inventoryBatch.update.mockResolvedValue(updatedBatch);
+    prisma.inventoryBatch.groupBy.mockResolvedValue([
+      { productId, _sum: { quantityOnHand: 10 } },
+    ]);
+
+    const result = await service.update(batchId, {
+      batchNumber: 'b-2',
+      expiryDate: '2027-06-01',
+      purchaseRate: 45.5,
+    });
+
+    expect(result.batchNumber).toBe('B-2');
+    expect(result.expiryDate).toBe('2027-06-01');
+    expect(result.purchaseRate).toBe(45.5);
+    expect(result.quantityOnHand).toBe(10);
+    expect(prisma.inventoryBatch.update).toHaveBeenCalledWith({
+      where: { id: batchId },
+      data: {
+        batchNumber: 'B-2',
+        expiryDate: new Date('2027-06-01T00:00:00.000Z'),
+        purchaseRate: 45.5,
+      },
+    });
+    expect(prisma.stockMovement.create).not.toHaveBeenCalled();
+  });
+
+  it('records a correction note without changing on-hand quantity', async () => {
+    const movement = {
+      id: '55555555-5555-4555-8555-555555555555',
+      type: StockMovementType.ADJUSTMENT,
+      quantity: 0,
+      note: 'Corrected expiry',
+      createdAt: new Date('2026-01-03T00:00:00.000Z'),
+    };
+    prisma.inventoryBatch.findFirst
+      .mockResolvedValueOnce(batch)
+      .mockResolvedValueOnce({
+        ...batch,
+        expiryDate: new Date('2027-06-01T00:00:00.000Z'),
+        movements: [movement],
+      });
+    prisma.inventoryBatch.groupBy.mockResolvedValue([
+      { productId, _sum: { quantityOnHand: 10 } },
+    ]);
+
+    const result = await service.update(batchId, {
+      expiryDate: '2027-06-01',
+      note: 'Corrected expiry',
+    });
+
+    expect(result.quantityOnHand).toBe(10);
+    expect(result.movements).toEqual([movement]);
+    expect(prisma.stockMovement.create).toHaveBeenCalledWith({
+      data: {
+        inventoryBatchId: batchId,
+        type: StockMovementType.ADJUSTMENT,
+        quantity: 0,
+        note: 'Corrected expiry',
+      },
+    });
+  });
+
+  it('rejects an empty inventory update', async () => {
+    await expect(service.update(batchId, {})).rejects.toThrow(
+      new BadRequestException(INVENTORY_UPDATE_EMPTY_MESSAGE),
+    );
+    expect(prisma.inventoryBatch.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a note-only inventory update', async () => {
+    await expect(
+      service.update(batchId, { note: 'Forgot the date' }),
+    ).rejects.toThrow(new BadRequestException(INVENTORY_UPDATE_EMPTY_MESSAGE));
+    expect(prisma.inventoryBatch.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects an expiry date before manufacturing date', async () => {
+    prisma.inventoryBatch.findFirst.mockResolvedValue(batch);
+
+    await expect(
+      service.update(batchId, { expiryDate: '2025-01-01' }),
+    ).rejects.toThrow(
+      new BadRequestException(INVENTORY_EXPIRY_BEFORE_MANUFACTURING_MESSAGE),
+    );
+    expect(prisma.inventoryBatch.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when updating a missing batch', async () => {
+    prisma.inventoryBatch.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.update(batchId, { expiryDate: '2027-06-01' }),
+    ).rejects.toThrow(new NotFoundException(INVENTORY_BATCH_NOT_FOUND_MESSAGE));
+  });
+
+  it('maps a unique batch number on update to a conflict', async () => {
+    prisma.inventoryBatch.findFirst.mockResolvedValue(batch);
+    prisma.inventoryBatch.update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: 'test',
+        meta: { target: ['productId', 'batchNumber'] },
+      }),
+    );
+
+    await expect(
+      service.update(batchId, { batchNumber: 'B-EXISTS' }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('maps a unique batch constraint to a conflict', async () => {

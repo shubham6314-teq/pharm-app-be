@@ -8,6 +8,7 @@ import { Prisma, StockMovementType } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateStockMovementDto } from './dto/create-stock-movement.dto.js';
 import { ListInventoryQueryDto } from './dto/list-inventory.query.js';
+import { UpdateInventoryDto } from './dto/update-inventory.dto.js';
 import {
   addUtcDays,
   parseDateOnly,
@@ -27,6 +28,7 @@ import {
   INVENTORY_NEW_BATCH_TYPE_MESSAGE,
   INVENTORY_PRODUCT_NOT_FOUND_MESSAGE,
   INVENTORY_QUANTITY_MESSAGE,
+  INVENTORY_UPDATE_EMPTY_MESSAGE,
   StockStatus,
 } from './inventory.constants.js';
 
@@ -227,6 +229,82 @@ export class InventoryService {
 
     const context = await this.loadStockContext(DEFAULT_EXPIRING_WITHIN_DAYS);
     return this.toBatchResponse(batch, context);
+  }
+
+  async update(id: string, dto: UpdateInventoryDto) {
+    const { batchNumber, manufacturingDate, expiryDate, purchaseRate, note } =
+      dto;
+
+    if (
+      batchNumber === undefined &&
+      manufacturingDate === undefined &&
+      expiryDate === undefined &&
+      purchaseRate === undefined
+    ) {
+      throw new BadRequestException(INVENTORY_UPDATE_EMPTY_MESSAGE);
+    }
+
+    const existing = await this.prisma.inventoryBatch.findFirst({
+      where: {
+        id,
+        product: { isDeleted: false },
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(INVENTORY_BATCH_NOT_FOUND_MESSAGE);
+    }
+
+    const nextManufacturingDate =
+      manufacturingDate !== undefined
+        ? parseDateOnly(manufacturingDate)
+        : existing.manufacturingDate;
+    const nextExpiryDate =
+      expiryDate !== undefined
+        ? parseDateOnly(expiryDate)
+        : existing.expiryDate;
+
+    if (nextManufacturingDate > nextExpiryDate) {
+      throw new BadRequestException(
+        INVENTORY_EXPIRY_BEFORE_MANUFACTURING_MESSAGE,
+      );
+    }
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.inventoryBatch.update({
+          where: { id },
+          data: {
+            ...(batchNumber !== undefined
+              ? { batchNumber: batchNumber.toUpperCase() }
+              : {}),
+            ...(manufacturingDate !== undefined
+              ? { manufacturingDate: nextManufacturingDate }
+              : {}),
+            ...(expiryDate !== undefined
+              ? { expiryDate: nextExpiryDate }
+              : {}),
+            ...(purchaseRate !== undefined ? { purchaseRate } : {}),
+          },
+        });
+
+        if (note) {
+          await tx.stockMovement.create({
+            data: {
+              inventoryBatchId: id,
+              type: StockMovementType.ADJUSTMENT,
+              quantity: 0,
+              note,
+            },
+          });
+        }
+      });
+    } catch (error) {
+      this.handleUniqueConstraintError(error);
+      throw error;
+    }
+
+    return this.findOne(id);
   }
 
   private async createBatch(

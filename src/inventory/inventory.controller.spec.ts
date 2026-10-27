@@ -11,6 +11,7 @@ describe('InventoryController', () => {
     createMovement: ReturnType<typeof vi.fn>;
     findAll: ReturnType<typeof vi.fn>;
     findOne: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
@@ -18,6 +19,7 @@ describe('InventoryController', () => {
       createMovement: vi.fn(),
       findAll: vi.fn(),
       findOne: vi.fn(),
+      update: vi.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -55,5 +57,15 @@ describe('InventoryController', () => {
     inventoryService.findOne.mockResolvedValue(batch);
 
     await expect(controller.findOne(batch.id)).resolves.toEqual(batch);
+  });
+
+  it('updates a batch', async () => {
+    const batch = { id: '44444444-4444-4444-8444-444444444444' };
+    const dto = { expiryDate: '2027-06-01', note: 'Corrected expiry' };
+    const updated = { ...batch, expiryDate: dto.expiryDate };
+    inventoryService.update.mockResolvedValue(updated);
+
+    await expect(controller.update(batch.id, dto)).resolves.toEqual(updated);
+    expect(inventoryService.update).toHaveBeenCalledWith(batch.id, dto);
   });
 });

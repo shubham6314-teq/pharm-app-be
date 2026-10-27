@@ -30,3 +30,5 @@ export const INVENTORY_QUANTITY_MESSAGE =
   'Quantity must be a positive whole number, or a non-zero whole number for an adjustment';
 export const INVENTORY_INSUFFICIENT_QUANTITY_MESSAGE =
   'This batch does not have enough packs for that movement';
+export const INVENTORY_UPDATE_EMPTY_MESSAGE =
+  'At least one batch field must be provided';
