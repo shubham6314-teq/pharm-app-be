@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma, StockMovementType } from '../generated/prisma/client.js';
+import { InventoryAlertService } from '../inventory-alert/inventory-alert.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateStockMovementDto } from './dto/create-stock-movement.dto.js';
 import { addUtcDays, startOfInventoryDay } from './inventory-dates.js';
@@ -24,6 +25,7 @@ import { InventoryService } from './inventory.service.js';
 
 describe('InventoryService', () => {
   let service: InventoryService;
+  let evaluateProduct: ReturnType<typeof vi.fn>;
   let prisma: {
     $transaction: ReturnType<typeof vi.fn>;
     product: {
@@ -132,10 +134,15 @@ describe('InventoryService', () => {
       },
     };
 
+    evaluateProduct = vi.fn();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         InventoryService,
         { provide: PrismaService, useValue: prisma },
+        {
+          provide: InventoryAlertService,
+          useValue: { evaluateProduct },
+        },
       ],
     }).compile();
 
@@ -156,6 +163,7 @@ describe('InventoryService', () => {
     expect(result.quantityOnHand).toBe(10);
     expect(result.status).toBe(StockStatus.IN_STOCK);
     expect(result.product.availableQuantity).toBe(10);
+    expect(evaluateProduct).toHaveBeenCalledWith(productId);
     expect(prisma.inventoryBatch.create).toHaveBeenCalledWith({
       data: {
         productId,

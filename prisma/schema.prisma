@@ -45,6 +45,24 @@ enum StockMovementType {
   EXPIRY
 }
 
+enum InventoryAlertKind {
+  LOW_STOCK
+}
+
+enum InventoryAlertStatus {
+  OPEN
+  ANALYZING
+  READY
+  FAILED
+  DISMISSED
+  RESOLVED
+}
+
+enum KnowledgeDocumentKind {
+  POLICY
+  SUPPLIER
+}
+
 model Division {
   id          String         @id @default(uuid()) @db.Uuid
   name        String         @unique @db.VarChar(150)
@@ -104,6 +122,7 @@ model Product {
   categoryId       String        @db.Uuid
   category         Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   inventoryBatches InventoryBatch[]
+  inventoryAlerts  InventoryAlert[]
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -192,6 +211,7 @@ model User {
   updatedAt            DateTime             @updatedAt
   refreshTokens        RefreshToken[]
   passwordResetTokens  PasswordResetToken[]
+  knowledgeDocuments   KnowledgeDocument[]
 
   @@map("users")
 }
@@ -220,4 +240,67 @@ model PasswordResetToken {
 
   @@index([userId])
   @@map("password_reset_tokens")
+}
+
+model InventoryAlert {
+  id                String               @id @default(uuid()) @db.Uuid
+  productId         String               @db.Uuid
+  product           Product              @relation(fields: [productId], references: [id], onDelete: Restrict)
+  kind              InventoryAlertKind   @default(LOW_STOCK)
+  availableQuantity Int
+  reorderLevel      Int
+  status            InventoryAlertStatus @default(OPEN)
+  activeProductKey  String?              @unique @db.Uuid
+  resolvedAt        DateTime?
+  analysis          InventoryAnalysis?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([productId])
+  @@index([status])
+  @@map("inventory_alerts")
+}
+
+model InventoryAnalysis {
+  id                     String         @id @default(uuid()) @db.Uuid
+  alertId                String         @unique @db.Uuid
+  alert                  InventoryAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  explanation            String
+  recommendedQuantity    Int?
+  calculationExplanation String
+  missingInformation     String[]
+  citedChunkIds          String[]
+  model                  String
+  evidence               Json
+  createdAt              DateTime       @default(now())
+
+  @@map("inventory_analyses")
+}
+
+model KnowledgeDocument {
+  id           String                @id @default(uuid()) @db.Uuid
+  title        String                @db.VarChar(200)
+  kind         KnowledgeDocumentKind
+  filename     String                @db.VarChar(255)
+  uploadedById String                @db.Uuid
+  uploadedBy   User                  @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  chunks       KnowledgeChunk[]
+  createdAt    DateTime              @default(now())
+
+  @@index([uploadedById])
+  @@index([kind])
+  @@map("knowledge_documents")
+}
+
+model KnowledgeChunk {
+  id         String            @id @default(uuid()) @db.Uuid
+  documentId String            @db.Uuid
+  document   KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  ordinal    Int
+  content    String
+  embedding  Unsupported("vector(768)")
+  createdAt  DateTime          @default(now())
+
+  @@index([documentId])
+  @@map("knowledge_chunks")
 }

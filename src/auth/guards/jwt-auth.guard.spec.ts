@@ -21,6 +21,7 @@ describe('JwtAuthGuard', () => {
     };
 
     return {
+      getType: () => 'http',
       getHandler: () => ({}),
       getClass: () => ({}),
       switchToHttp: () => ({
@@ -53,6 +54,22 @@ describe('JwtAuthGuard', () => {
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(context.switchToHttp().getRequest().user).toEqual(payload);
+  });
+
+  it('leaves websocket authentication to the notification gateway', async () => {
+    const context = {
+      getType: () => 'ws',
+      getHandler: () => ({}),
+      getClass: () => ({}),
+      switchToHttp: () => ({
+        getRequest: () => {
+          throw new Error('HTTP request is not available');
+        },
+      }),
+    } as unknown as ExecutionContext;
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(tokenService.verifyAccessToken).not.toHaveBeenCalled();
   });
 
   it('rejects a missing bearer token', async () => {

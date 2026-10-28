@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, StockMovementType } from '../generated/prisma/client.js';
+import { InventoryAlertService } from '../inventory-alert/inventory-alert.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateStockMovementDto } from './dto/create-stock-movement.dto.js';
 import { ListInventoryQueryDto } from './dto/list-inventory.query.js';
@@ -115,7 +116,10 @@ const INBOUND_TYPES = new Set<StockMovementType>([
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly inventoryAlertService: InventoryAlertService,
+  ) {}
 
   async createMovement(dto: CreateStockMovementDto) {
     const batchNumber = dto.batchNumber.trim().toUpperCase();
@@ -173,6 +177,7 @@ export class InventoryService {
       });
     });
 
+    await this.inventoryAlertService.evaluateProduct(dto.productId);
     const context = await this.loadStockContext(DEFAULT_EXPIRING_WITHIN_DAYS);
     return this.toBatchResponse(batch, context);
   }
@@ -304,7 +309,119 @@ export class InventoryService {
       throw error;
     }
 
+    await this.inventoryAlertService.evaluateProduct(existing.productId);
     return this.findOne(id);
+  }
+
+  async getProductFact(productId: string) {
+    const product = await this.prisma.product.findFirst({
+      where: {
+        id: productId,
+        isDeleted: false,
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        packSize: true,
+        reorderLevel: true,
+        status: true,
+        packType: {
+          select: {
+            pluralLabel: true,
+          },
+        },
+        category: {
+          select: {
+            name: true,
+            division: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException(INVENTORY_PRODUCT_NOT_FOUND_MESSAGE);
+    }
+
+    return {
+      id: product.id,
+      name: product.name,
+      code: product.code,
+      packSize: product.packSize,
+      packLabel: product.packType.pluralLabel,
+      reorderLevel: product.reorderLevel,
+      status: product.status,
+      categoryName: product.category.name,
+      divisionName: product.category.division.name,
+    };
+  }
+
+  async getInventoryFact(productId: string) {
+    const product = await this.getProductFact(productId);
+    const today = startOfInventoryDay();
+    const batches = await this.prisma.inventoryBatch.findMany({
+      where: { productId },
+      orderBy: { expiryDate: 'asc' },
+      select: {
+        batchNumber: true,
+        quantityOnHand: true,
+        expiryDate: true,
+      },
+    });
+    const availableQuantity = batches
+      .filter((batch) => batch.expiryDate >= today)
+      .reduce((sum, batch) => sum + batch.quantityOnHand, 0);
+
+    return {
+      availableQuantity,
+      reorderLevel: product.reorderLevel,
+      batches: batches.map((batch) => ({
+        batchNumber: batch.batchNumber,
+        quantityOnHand: batch.quantityOnHand,
+        expiryDate: toDateOnlyString(batch.expiryDate),
+        expired: batch.expiryDate < today,
+      })),
+    };
+  }
+
+  async getConsumptionFact(productId: string, since: Date, lookbackDays: number) {
+    await this.getProductFact(productId);
+    const grouped = await this.prisma.stockMovement.groupBy({
+      by: ['type'],
+      where: {
+        createdAt: { gte: since },
+        inventoryBatch: { productId },
+      },
+      _sum: { quantity: true },
+      _count: { _all: true },
+    });
+
+    const byType = new Map(
+      grouped.map((row) => [
+        row.type,
+        {
+          quantity: row._sum.quantity ?? 0,
+          count: row._count._all,
+        },
+      ]),
+    );
+    const packs = (type: StockMovementType) =>
+      Math.abs(byType.get(type)?.quantity ?? 0);
+
+    return {
+      lookbackDays,
+      since: since.toISOString(),
+      salePacks: packs(StockMovementType.SALE),
+      saleCount: byType.get(StockMovementType.SALE)?.count ?? 0,
+      returnPacks: packs(StockMovementType.RETURN),
+      damagePacks: packs(StockMovementType.DAMAGE),
+      expiryPacks: packs(StockMovementType.EXPIRY),
+    };
   }
 
   private async createBatch(
