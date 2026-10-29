@@ -389,6 +389,113 @@ export class InventoryService {
     };
   }
 
+  async findProducts(input: {
+    productId?: string;
+    code?: string;
+    query?: string;
+  }) {
+    if (input.productId) {
+      return [await this.getProductFact(input.productId)];
+    }
+
+    if (input.code) {
+      const product = await this.prisma.product.findFirst({
+        where: {
+          isDeleted: false,
+          code: { equals: input.code.trim(), mode: 'insensitive' },
+        },
+        select: { id: true },
+      });
+
+      if (!product) {
+        return [];
+      }
+
+      return [await this.getProductFact(product.id)];
+    }
+
+    const query = input.query?.trim();
+    if (!query) {
+      return [];
+    }
+
+    const matches = await this.prisma.product.findMany({
+      where: {
+        isDeleted: false,
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { code: { contains: query, mode: 'insensitive' } },
+        ],
+      },
+      select: { id: true },
+      take: 5,
+      orderBy: { name: 'asc' },
+    });
+
+    return Promise.all(matches.map((product) => this.getProductFact(product.id)));
+  }
+
+  async listLowStock(limit = 20) {
+    const context = await this.loadStockContext(DEFAULT_EXPIRING_WITHIN_DAYS);
+    const ids = [...context.lowProductIds].slice(0, limit);
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: ids }, isDeleted: false },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        reorderLevel: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return products.map((product) => ({
+      id: product.id,
+      name: product.name,
+      code: product.code,
+      reorderLevel: product.reorderLevel,
+      availableQuantity: context.availableByProduct.get(product.id) ?? 0,
+    }));
+  }
+
+  async listExpiring(limit = 20) {
+    const context = await this.loadStockContext(DEFAULT_EXPIRING_WITHIN_DAYS);
+    const batches = await this.prisma.inventoryBatch.findMany({
+      where: {
+        quantityOnHand: { gt: 0 },
+        expiryDate: { gte: context.today, lte: context.expiringUntil },
+        product: { isDeleted: false },
+      },
+      take: limit,
+      orderBy: { expiryDate: 'asc' },
+      select: {
+        batchNumber: true,
+        quantityOnHand: true,
+        expiryDate: true,
+        product: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
+      },
+    });
+
+    return batches.map((batch) => ({
+      productId: batch.product.id,
+      name: batch.product.name,
+      code: batch.product.code,
+      batchNumber: batch.batchNumber,
+      quantityOnHand: batch.quantityOnHand,
+      expiryDate: toDateOnlyString(batch.expiryDate),
+    }));
+  }
+
   async getConsumptionFact(productId: string, since: Date, lookbackDays: number) {
     await this.getProductFact(productId);
     const grouped = await this.prisma.stockMovement.groupBy({

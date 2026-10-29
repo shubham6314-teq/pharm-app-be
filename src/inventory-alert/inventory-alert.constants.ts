@@ -10,6 +10,10 @@ export const INVENTORY_ALERT_ANALYSIS_FAILED = 'inventory.alert.analysis_failed'
 export const INVENTORY_ALERT_NOT_FOUND_MESSAGE = 'Inventory alert not found';
 export const INVENTORY_ALERT_DISMISS_MESSAGE =
   'This alert can no longer be dismissed';
+export const INVENTORY_ALERT_RECOMMENDATION_MESSAGE =
+  'This recommendation can no longer be decided';
+export const INVENTORY_ALERT_RECOMMENDATION_QUANTITY_MESSAGE =
+  'Enter a quantity to approve';
 
 export type InventoryAlertEvent = {
   alertId: string;

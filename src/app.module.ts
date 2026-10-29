@@ -12,6 +12,7 @@ import { ContentUnitModule } from './content-unit/content-unit.module.js';
 import { DivisionModule } from './division/division.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { InventoryAlertModule } from './inventory-alert/inventory-alert.module.js';
+import { InventoryCopilotModule } from './inventory-copilot/inventory-copilot.module.js';
 import { InventoryIntelligenceModule } from './inventory-intelligence/inventory-intelligence.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { KnowledgeModule } from './knowledge/knowledge.module.js';
@@ -44,6 +45,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     KnowledgeModule,
     NotificationModule,
     InventoryIntelligenceModule,
+    InventoryCopilotModule,
   ],
   controllers: [AppController],
   providers: [

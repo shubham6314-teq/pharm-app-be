@@ -9,16 +9,23 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   InventoryAlertStatus,
   Prisma,
+  RecommendationStatus,
 } from '../generated/prisma/client.js';
 import { startOfInventoryDay } from '../inventory/inventory-dates.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ListInventoryAlertsQueryDto } from './dto/list-inventory-alerts.query.js';
+import {
+  RecommendationDecision,
+  UpdateRecommendationDto,
+} from './dto/update-recommendation.dto.js';
 import {
   DEFAULT_ALERT_PAGE,
   DEFAULT_ALERT_PAGE_SIZE,
   INVENTORY_ALERT_CREATED,
   INVENTORY_ALERT_DISMISS_MESSAGE,
   INVENTORY_ALERT_NOT_FOUND_MESSAGE,
+  INVENTORY_ALERT_RECOMMENDATION_MESSAGE,
+  INVENTORY_ALERT_RECOMMENDATION_QUANTITY_MESSAGE,
   INVENTORY_ALERT_RESOLVED,
   type InventoryAlertEvent,
 } from './inventory-alert.constants.js';
@@ -169,6 +176,55 @@ export class InventoryAlertService implements OnApplicationBootstrap {
       },
       include: alertInclude,
     });
+  }
+
+  async decideRecommendation(
+    id: string,
+    userId: string,
+    dto: UpdateRecommendationDto,
+  ) {
+    // Intent only; a later LangGraph interrupt can pause before READY and reuse this API.
+    const alert = await this.findOne(id);
+    const analysis = alert.analysis;
+
+    if (
+      alert.status !== InventoryAlertStatus.READY ||
+      !analysis ||
+      analysis.recommendationStatus !== RecommendationStatus.PENDING
+    ) {
+      throw new BadRequestException(INVENTORY_ALERT_RECOMMENDATION_MESSAGE);
+    }
+
+    if (dto.decision === RecommendationDecision.REJECT) {
+      await this.prisma.inventoryAnalysis.update({
+        where: { id: analysis.id },
+        data: {
+          recommendationStatus: RecommendationStatus.REJECTED,
+          decidedQuantity: null,
+          decidedAt: new Date(),
+          decidedById: userId,
+        },
+      });
+      return this.findOne(id);
+    }
+
+    const decidedQuantity = dto.quantity ?? analysis.recommendedQuantity;
+    if (decidedQuantity == null || decidedQuantity < 1) {
+      throw new BadRequestException(
+        INVENTORY_ALERT_RECOMMENDATION_QUANTITY_MESSAGE,
+      );
+    }
+
+    await this.prisma.inventoryAnalysis.update({
+      where: { id: analysis.id },
+      data: {
+        recommendationStatus: RecommendationStatus.APPROVED,
+        decidedQuantity,
+        decidedAt: new Date(),
+        decidedById: userId,
+      },
+    });
+    return this.findOne(id);
   }
 
   private async evaluateProductUnsafe(productId: string): Promise<void> {

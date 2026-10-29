@@ -63,6 +63,17 @@ enum KnowledgeDocumentKind {
   SUPPLIER
 }
 
+enum RecommendationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CopilotMessageRole {
+  USER
+  ASSISTANT
+}
+
 model Division {
   id          String         @id @default(uuid()) @db.Uuid
   name        String         @unique @db.VarChar(150)
@@ -212,6 +223,8 @@ model User {
   refreshTokens        RefreshToken[]
   passwordResetTokens  PasswordResetToken[]
   knowledgeDocuments   KnowledgeDocument[]
+  copilotThreads       CopilotThread[]
+  analysisDecisions    InventoryAnalysis[]
 
   @@map("users")
 }
@@ -262,9 +275,9 @@ model InventoryAlert {
 }
 
 model InventoryAnalysis {
-  id                     String         @id @default(uuid()) @db.Uuid
-  alertId                String         @unique @db.Uuid
-  alert                  InventoryAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  id                     String               @id @default(uuid()) @db.Uuid
+  alertId                String               @unique @db.Uuid
+  alert                  InventoryAlert       @relation(fields: [alertId], references: [id], onDelete: Cascade)
   explanation            String
   recommendedQuantity    Int?
   calculationExplanation String
@@ -272,8 +285,14 @@ model InventoryAnalysis {
   citedChunkIds          String[]
   model                  String
   evidence               Json
-  createdAt              DateTime       @default(now())
+  recommendationStatus   RecommendationStatus @default(PENDING)
+  decidedQuantity        Int?
+  decidedAt              DateTime?
+  decidedById            String?              @db.Uuid
+  decidedBy              User?                @relation(fields: [decidedById], references: [id], onDelete: SetNull)
+  createdAt              DateTime             @default(now())
 
+  @@index([decidedById])
   @@map("inventory_analyses")
 }
 
@@ -303,4 +322,29 @@ model KnowledgeChunk {
 
   @@index([documentId])
   @@map("knowledge_chunks")
+}
+
+model CopilotThread {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  CopilotMessage[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([userId])
+  @@map("copilot_threads")
+}
+
+model CopilotMessage {
+  id         String             @id @default(uuid()) @db.Uuid
+  threadId   String             @db.Uuid
+  thread     CopilotThread      @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  role       CopilotMessageRole
+  content    String
+  citations  Json?
+  createdAt  DateTime           @default(now())
+
+  @@index([threadId])
+  @@map("copilot_messages")
 }
